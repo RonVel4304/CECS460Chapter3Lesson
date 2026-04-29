@@ -13,6 +13,8 @@
  *   BUTTON_PIN = GPIO 4
  */
 
+// TODO: Make seperate .h files for networking 
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
