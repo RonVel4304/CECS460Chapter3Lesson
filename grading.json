@@ -4,60 +4,46 @@
   "questions": [
     {
       "id": "q1",
-      "points": 20,
+      "points": 15,
       "keywords": [
+        "single-core",
         "single core",
-        "multicore",
-        "multi core",
-        "heterogeneous",
-        "heterogenous",
         "predictable",
         "deterministic",
         "timing",
-        "concurrency",
-        "parallel",
-        "overhead",
-        "synchronization",
-        "coordination",
-        "power",
-        "latency",
-        "real-time",
-        "real time",
+        "simpler",
         "debug",
-        "complexity",
-        "tradeoff"
+        "lower complexity",
+        "low power"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder FRQ grading for a hypothetical design-choice question where the student must choose between a single-core, multicore, or heterogeneous SoC. Full credit should go to answers that justify the choice using workload separation, timing predictability, synchronization overhead, power, or software complexity."
+      "rubric": "Full credit: student chooses a single-core design for a small wearable or similarly constrained device and justifies it using predictability, simpler debugging, lower synchronization overhead, lower software complexity, or power efficiency. Accept answers that compare it against multicore or heterogeneous options."
     },
     {
       "id": "q2",
-      "points": 20,
+      "points": 15,
       "keywords": [
         "same core",
         "contention",
+        "shared",
+        "shared data",
+        "shared buffer",
+        "interference",
         "jitter",
-        "timing",
-        "deadline",
         "missed",
+        "deadline",
         "latency",
         "background task",
-        "heavy load",
-        "scheduling",
-        "core placement",
-        "isolated",
+        "heavy task",
         "other core",
-        "parallelism",
-        "deterministic",
-        "shared resource",
-        "interference"
+        "isolate"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder FRQ grading for a hypothetical debugging scenario in which a device has timing instability or missed deadlines. Full credit should go to answers that identify contention between tasks, poor core placement, or interference from a heavy background load, and explain why moving or isolating tasks could help."
+      "rubric": "Full credit: student explains that putting a timing-critical task and a heavy background task on the same core, or sharing data inefficiently across cores, can create contention, interference, jitter, latency, or missed deadlines. Accept answers that mention moving the heavy task to the other core or isolating work."
     },
     {
       "id": "q3",
-      "points": 15,
+      "points": 12,
       "keywords": [
         "harvard",
         "von neumann",
@@ -65,46 +51,34 @@
         "data",
         "separate",
         "shared",
+        "path",
         "bus",
-        "bandwidth",
-        "memory path",
         "contention",
+        "bandwidth",
         "throughput",
-        "modified harvard",
-        "cache",
-        "iram",
-        "dram",
-        "program memory",
-        "data memory"
+        "modified harvard"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder FRQ grading for memory-architecture questions. Full credit should go to answers that correctly compare Harvard and von Neumann architectures, especially in terms of instruction/data separation, bandwidth, and contention. Accept modified Harvard discussion for ESP32-related answers."
+      "rubric": "Full credit: student correctly compares Harvard and von Neumann architectures, especially the difference between separate instruction/data paths and shared paths. Accept discussion of reduced contention, better throughput, or modified Harvard behavior."
     },
     {
       "id": "q4",
-      "points": 15,
+      "points": 12,
       "keywords": [
         "cisc",
         "risc",
-        "compatibility",
-        "legacy",
         "x86",
-        "toolchain",
-        "code density",
+        "legacy",
+        "compatibility",
         "desktop",
-        "windows",
         "linux",
-        "power",
-        "area",
-        "predictable",
-        "deterministic",
-        "embedded",
-        "performance",
-        "complex instruction",
-        "simple instruction"
+        "windows",
+        "ecosystem",
+        "toolchain",
+        "code density"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder FRQ grading for questions about when a designer would choose a CISC core over a RISC core. Full credit should go to answers that reference compatibility, legacy x86 software, desktop-class operating systems, code density, or mature software ecosystems, while also recognizing embedded power/determinism tradeoffs."
+      "rubric": "Full credit: student explains that a designer might choose a CISC core when compatibility with legacy x86 software, desktop-class operating systems, or a mature software ecosystem matters more than embedded-style simplicity, power, or timing predictability."
     },
     {
       "id": "q5",
@@ -112,109 +86,105 @@
       "keywords": [
         "big.little",
         "big little",
-        "big core",
-        "little core",
-        "performance",
-        "efficiency",
-        "power",
-        "background task",
-        "burst",
-        "energy",
+        "performance core",
+        "efficiency core",
+        "high performance",
+        "low power",
         "heterogeneous",
-        "mixed workload",
-        "heavy task",
-        "light task"
+        "burst",
+        "background task",
+        "energy",
+        "mixed workload"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder FRQ grading for questions about big.LITTLE architectures. Full credit should go to answers that explain that big.LITTLE combines high-performance cores with energy-efficient cores to balance performance and power depending on workload."
+      "rubric": "Full credit: student explains that big.LITTLE combines performance-oriented and efficiency-oriented cores to balance speed and power across mixed workloads."
     },
     {
       "id": "q_mc1",
-      "points": 5,
+      "points": 6,
       "keywords": [
-        "harvard",
-        "separate instruction and data paths"
+        "instructions and data use separate paths",
+        "separate instruction and data paths",
+        "harvard"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder MCQ grading for Harvard vs von Neumann. Full credit if the selected answer correctly identifies Harvard architecture as using separate instruction and data paths."
+      "rubric": "MCQ: full credit if the submitted answer text identifies Harvard architecture as using separate instruction and data paths."
     },
     {
       "id": "q_mc2",
-      "points": 5,
+      "points": 6,
       "keywords": [
-        "heterogeneous",
-        "different types of cores",
-        "mixed criticality"
+        "improve concurrency but add synchronization and debug complexity",
+        "synchronization and debug complexity",
+        "concurrency"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder MCQ grading for single-core, multicore, and heterogeneous systems. Full credit if the selected answer correctly identifies heterogeneous systems as using different types of cores or serving mixed-criticality workloads."
+      "rubric": "MCQ: full credit if the submitted answer text identifies the main multicore tradeoff as improved concurrency with added synchronization/debug complexity."
     },
     {
       "id": "q_mc3",
-      "points": 5,
+      "points": 6,
       "keywords": [
+        "different safety, timing, or reliability requirements",
+        "different timing or safety requirements",
         "mixed criticality",
-        "different safety or timing requirements",
         "critical and noncritical tasks"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder MCQ grading for the meaning of mixed criticality. Full credit if the selected answer correctly explains that mixed criticality refers to tasks with different safety, timing, or reliability requirements sharing a system."
+      "rubric": "MCQ: full credit if the submitted answer text correctly defines mixed criticality as tasks with different timing, safety, or reliability requirements sharing a system."
     },
     {
       "id": "q_mc4",
-      "points": 5,
+      "points": 6,
       "keywords": [
+        "heterogeneous architecture with performance and efficiency cores",
+        "performance and efficiency cores",
         "big.little",
-        "high performance and efficiency cores",
-        "performance cores and efficiency cores"
+        "heterogeneous"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder MCQ grading for big.LITTLE. Full credit if the selected answer identifies big.LITTLE as a heterogeneous architecture combining performance-oriented and efficiency-oriented cores."
+      "rubric": "MCQ: full credit if the submitted answer text identifies big.LITTLE as a heterogeneous architecture combining performance and efficiency cores."
     },
     {
       "id": "q_tf1",
-      "points": 5,
+      "points": 4,
       "keywords": [
         "false"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder true/false grading entry. Intended for a statement such as 'Harvard architecture always means two completely separate physical memories' or another Chapter 3 misconception check."
+      "rubric": "True/false: full credit if the student answers False to the statement that Harvard architecture always means two completely separate physical memories."
     },
     {
       "id": "q_lab1",
-      "points": 10,
+      "points": 4,
       "keywords": [
         "timing:",
-        "blink_count",
-        "max_jitter_us",
-        "missed_deadlines",
-        "blink_core",
-        "load_core",
-        "status=pass",
-        "pass"
+        "produced=",
+        "consumed=",
+        "missed=",
+        "status=pass"
       ],
-      "keyword_mode": "any",
-      "rubric": "Placeholder auto-graded hardware telemetry question for the Chapter 3 multicore timing lab. Intended firmware format may look like: [timing:blink_count=X max_jitter_us=Y missed_deadlines=Z blink_core=A load_core=B]. Full credit should eventually require correct task placement, low jitter, and zero or low missed deadlines."
+      "keyword_mode": "all",
+      "rubric": "Auto-graded hardware telemetry. Expected format should include a timing tag and fields such as produced, consumed, missed, and status=PASS. For now, this server-side keyword grader checks only that the telemetry string includes all required fields. Example acceptable format: [timing:produced=20 consumed=20 missed=0 status=PASS]."
     },
     {
       "id": "q_lab2",
       "points": 10,
       "keywords": [
-        "same core",
         "contention",
-        "jitter",
-        "timing",
-        "deadline",
-        "background task",
+        "shared",
+        "shared buffer",
+        "same core",
         "other core",
-        "load task",
-        "timing-critical",
-        "timing critical",
+        "jitter",
         "latency",
-        "interference"
+        "missed",
+        "isolate",
+        "timing-critical",
+        "timing critical"
       ],
       "keyword_mode": "any",
-      "rubric": "Placeholder short reflection question for the Chapter 3 lab. Full credit should go to answers that explain why placing a timing-critical task and a heavy background task on the same core can increase jitter, latency, or missed deadlines, and why separating them can improve behavior."
+      "rubric": "Full credit: student explains that poor sharing or poor task placement can create contention, latency, jitter, or missed events, and that isolating work or moving heavy processing away from the timing-critical path improves responsiveness."
     }
   ]
 }
