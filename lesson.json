@@ -1,29 +1,30 @@
 {
-  "chapter": "ch03",
+  "chapter": "ch3",
   "title": "CECS 460 -- CPU Architectures and Core Comparisons",
   "learning_objectives": [
-    "Compare single-core, multicore, and heterogeneous SoC designs in terms of timing, power, complexity, and workload suitability",
-    "Explain the tradeoffs between Harvard and von Neumann memory architectures, including modified Harvard behavior on embedded systems",
-    "Describe when a designer would prefer a RISC core versus a CISC core in real systems",
-    "Interpret big.LITTLE and mixed-criticality systems as architectural responses to competing performance, power, and safety goals",
-    "Analyze hypothetical design scenarios and justify architectural choices using real embedded-system constraints",
-    "Measure and explain how poor task placement on a multicore ESP32 can increase timing jitter and missed deadlines"
+    "Distinguish between ISA and microarchitecture, and explain why CPU labels alone do not determine performance, power, or timing behavior",
+    "Explain RISC and CISC as design philosophies and evaluate when each can make sense in a real system",
+    "Compare Harvard, von Neumann, and modified Harvard memory organizations in terms of instruction/data paths, bandwidth, contention, and programmer visibility",
+    "Compare single-core, symmetric multicore, and heterogeneous SoC designs in terms of predictability, concurrency, power, synchronization, and debugging complexity",
+    "Interpret big.LITTLE and mixed-criticality systems as architectural responses to competing performance, power, timing, and safety goals",
+    "Use approximate performance and power numbers as engineering intuition without treating them as universal constants",
+    "Measure and explain how heavy background work, shared state, or poor task isolation on a multicore ESP32 can increase latency, jitter, missed events, or unstable timing"
   ],
   "hardware": {
     "target": "esp32",
     "sensor": null,
-    "wiring": "Breadboarded ESP32 timing lab. Required external hardware: 1 LED, 1 current-limiting resistor, 1 pushbutton, breadboard, and jumper wires. The lab demonstrates timing instability caused by poor task placement on a dual-core ESP32."
+    "wiring": "Breadboarded ESP32 timing lab. Required external hardware: 1 LED, 1 current-limiting resistor, 1 pushbutton, breadboard, and jumper wires. The lab demonstrates timing instability caused by heavy background work and shared-buffer contention in a multicore ESP32 program."
   },
   "reference_code": [
     {
-      "filename": "CECS460_Ch3_CoreTiming.ino",
-      "label": "Chapter 3 -- Core Placement Timing Lab Firmware",
-      "description": "ESP32 classroom-integrated firmware for a Chapter 3 bug-fix lab. Demonstrates how placing a heavy background task on the same core as a timing-critical task can increase jitter and missed deadlines."
+      "filename": "CECS460_Lab3_AES.ino",
+      "label": "Chapter 3 -- ESP32 Core Timing and Shared-Buffer Lab Firmware",
+      "description": "ESP32 classroom firmware for a Chapter 3 bug-fix lab. Students inspect timing telemetry and revise the starter code so the timing-critical LED/event path is less affected by heavy background work and shared-buffer contention."
     },
     {
       "filename": "CECS460_Ch3_CoreTiming_Reference.ino",
       "label": "Chapter 3 -- Reference Solution Firmware",
-      "description": "Reference firmware showing corrected task placement and improved timing behavior for the Chapter 3 multicore lab."
+      "description": "Reference firmware showing cleaner task separation, reduced shared-state interference, and improved timing behavior for the Chapter 3 multicore lab."
     }
   ],
   "steps": [
@@ -34,11 +35,16 @@
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "A processor's <strong>ISA</strong> defines the interface visible to software, while the <strong>microarchitecture</strong> defines how that ISA is actually implemented in hardware. This is why two processors with the same ISA can have very different performance, power, and timing behavior."
+          "text": "A processor's <strong>ISA</strong> is the interface visible to software: instructions, registers, encodings, memory behavior, and exceptions. The <strong>microarchitecture</strong> is the hardware design that runs that ISA: pipeline, cache organization, branch prediction, issue width, clock rate, and execution units."
+        },
+        {
+          "type": "callout",
+          "style": "info",
+          "text": "Two processors can run the same ISA and still behave very differently. The ISA explains software compatibility; the microarchitecture explains much of the real performance, power, and timing behavior."
         },
         {
           "type": "comparison_table",
-          "heading": "RISC vs. CISC at a high level",
+          "heading": "RISC vs. CISC as engineering tradeoffs",
           "columns": [
             "Category",
             "RISC",
@@ -47,8 +53,8 @@
           "rows": [
             [
               "Instruction style",
-              "Smaller, simpler instruction set",
-              "Larger, more complex instruction set"
+              "Smaller, more regular instruction set; often load/store",
+              "Larger, more varied instruction set; often richer addressing modes"
             ],
             [
               "Typical strengths",
@@ -69,31 +75,31 @@
         },
         {
           "type": "callout",
-          "style": "info",
-          "text": "The most important takeaway: <strong>RISC does not automatically mean faster</strong>. In embedded systems, RISC often wins because it is simpler, lower power, and more predictable -- not because it always has the highest peak performance."
+          "style": "warning",
+          "text": "Avoid the slogan <strong>RISC = faster</strong>. In embedded systems, RISC often wins because it is simpler, lower power, and more predictable. High-performance CISC processors can still be much faster in absolute wall-clock time."
         }
       ],
       "question": {
         "type": "mc",
-        "text": "When would a designer most likely choose a CISC core over a RISC core?",
+        "text": "Which statement best separates ISA from microarchitecture?",
         "choices": [
-          "When the design needs predictable interrupt timing and ultra-low power",
-          "When the product must run legacy x86 software or a desktop-class operating system",
-          "When the application only performs simple sensor sampling",
-          "When the system requires a modified Harvard memory architecture"
+          "The ISA is the chip's clock speed, while the microarchitecture is the source code.",
+          "The ISA is what software targets, while the microarchitecture is how a specific processor implements it.",
+          "The ISA only matters for CISC processors, while microarchitecture only matters for RISC processors.",
+          "The ISA determines battery size, while microarchitecture determines the programming language."
         ],
         "correct": 1,
-        "explanation": "CISC cores such as x86 are often chosen when compatibility with legacy software, mainstream Linux distributions, or desktop-class operating systems is more important than minimizing power or maximizing predictability."
+        "explanation": "The ISA defines the software-visible interface. The microarchitecture is the actual hardware organization that implements that interface."
       }
     },
     {
       "section": "3.2",
       "title": "3.2 -- Memory Architecture",
-      "subtitle": "Harvard, von Neumann, and real embedded tradeoffs",
+      "subtitle": "Harvard, von Neumann, modified Harvard, and contention",
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "Harvard and von Neumann describe how instruction and data memory are organized. Harvard architectures separate instruction and data paths for higher bandwidth, while von Neumann systems use a shared path and simpler programming model. Many modern SoCs use a <strong>modified Harvard</strong> approach."
+          "text": "Harvard and von Neumann describe how instruction and data access are organized. Harvard designs separate instruction and data paths, while von Neumann designs use a shared path and a simpler unified model."
         },
         {
           "type": "comparison_table",
@@ -115,9 +121,9 @@
               "More contention between instruction fetch and data access"
             ],
             [
-              "Typical tradeoff",
-              "More complexity near the core",
-              "Simpler unified model"
+              "Programmer view",
+              "May be separate or partly unified",
+              "Usually one unified address space"
             ],
             [
               "Embedded relevance",
@@ -129,30 +135,34 @@
         {
           "type": "callout",
           "style": "warning",
-          "text": "A common misconception is that Harvard always means two completely separate physical memories. In practice, many systems separate instruction and data paths near the core while still presenting a unified address space to software."
+          "text": "Harvard architecture does <strong>not</strong> always mean two completely separate physical memory chips. Many embedded SoCs use a modified Harvard approach: separate instruction/data paths near the core, but a mostly unified address space for C code."
+        },
+        {
+          "type": "key_idea",
+          "text": "Caches improve average performance but can add variable latency. Scratchpad or tightly coupled memory is smaller and more manual, but it can make timing easier to predict for interrupt handlers or time-critical code."
         }
       ],
       "question": {
         "type": "mc",
-        "text": "What is the main practical advantage of a Harvard architecture compared with a von Neumann architecture?",
+        "text": "What is the main practical advantage of a Harvard-style organization?",
         "choices": [
-          "It always uses two completely separate physical memory chips",
-          "It allows instruction fetch and data access to proceed on separate paths",
-          "It eliminates the need for caches",
-          "It only works on RISC processors"
+          "It always uses two physical memory chips.",
+          "Instruction fetch and data access can use separate paths, reducing contention.",
+          "It eliminates all cache misses.",
+          "It only works with x86 processors."
         ],
         "correct": 1,
-        "explanation": "Harvard architecture separates instruction and data paths, which can reduce contention and improve throughput. It does not necessarily require two totally separate physical memory chips."
+        "explanation": "The key idea is separate instruction and data paths. The physical memory organization can vary across real systems."
       }
     },
     {
       "section": "3.3",
       "title": "3.3 -- Single-Core, Multicore, and Heterogeneous SoCs",
-      "subtitle": "Choosing the right core arrangement for the workload",
+      "subtitle": "Choosing the core arrangement that fits the workload",
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "Single-core systems are often easier to debug and more predictable. Multicore systems improve concurrency but add synchronization complexity. Heterogeneous systems combine different kinds of cores to balance performance, power, and mixed-criticality needs."
+          "text": "Single-core systems are often simpler, easier to debug, and easier to analyze for worst-case timing. Multicore systems can improve responsiveness by separating work, but they add synchronization, shared-resource contention, and debugging complexity."
         },
         {
           "type": "comparison_table",
@@ -166,151 +176,226 @@
             [
               "Single-core",
               "Simple, predictable, easier worst-case timing analysis",
-              "Less concurrency and isolation"
+              "Less concurrency and less task isolation"
             ],
             [
               "Symmetric multicore",
               "Better responsiveness and parallel task separation",
-              "Synchronization overhead and debug complexity"
+              "Synchronization overhead, race conditions, and shared-resource contention"
             ],
             [
               "Heterogeneous / big.LITTLE",
               "Can match different workloads to different cores",
-              "More complex scheduling and system design"
+              "More complex scheduling, power management, and system design"
             ]
           ]
         },
         {
           "type": "callout",
           "style": "info",
-          "text": "<strong>Mixed criticality</strong> means that different tasks in the same system have different timing, safety, or reliability requirements. A heterogeneous system can isolate high-criticality tasks from noncritical or background work."
+          "text": "In a timing-sensitive embedded system, multicore is useful only when the work is separated carefully. A heavy background task can still interfere with a timing-critical task through shared memory, locks, queues, cache effects, or poor scheduling."
+        },
+        {
+          "type": "callout",
+          "style": "info",
+          "text": "<strong>Mixed criticality</strong> means tasks with different timing, safety, or reliability requirements share the same system. One task may be safety-critical while another is only a user-interface or logging task."
         }
       ],
       "question": {
         "type": "mc",
-        "text": "What does mixed criticality mean in an SoC context?",
+        "text": "Which is the main tradeoff of multicore systems compared with single-core systems?",
         "choices": [
-          "The system mixes analog and digital circuits on the same chip",
-          "The system includes tasks with different safety, timing, or reliability requirements",
-          "The chip has both internal and external memory",
-          "The processor runs both C and assembly code"
+          "They eliminate all timing problems.",
+          "They improve concurrency but add synchronization and debug complexity.",
+          "They can only be used with CISC processors.",
+          "They remove the need for shared memory."
         ],
         "correct": 1,
-        "explanation": "Mixed criticality refers to workloads with different levels of timing, safety, or reliability importance sharing the same system."
+        "explanation": "Multicore can help separate work, but shared data and coordination create new complexity."
       }
     },
     {
-      "section": "3.3b",
-      "title": "3.3 -- big.LITTLE and Heterogeneous Performance Scaling",
-      "subtitle": "Why some cores are big and others are little",
+      "section": "3.4",
+      "title": "3.4 -- Processor Families as Design Choices",
+      "subtitle": "Do not memorize the catalog; match the core to the constraint",
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "<strong>big.LITTLE</strong> refers to a heterogeneous CPU arrangement in which high-performance cores handle bursty or demanding workloads while lower-power efficiency cores handle background work, idle periods, or lighter tasks."
+          "text": "Processor families are best understood as design choices. The useful question is not 'which core is best?' but 'which core best fits this product's timing, power, cost, compatibility, and software requirements?'"
         },
         {
           "type": "comparison_table",
-          "heading": "big.LITTLE motivation",
+          "heading": "Example architecture choices",
           "columns": [
-            "Need",
-            "Big core role",
-            "Little core role"
+            "Application need",
+            "Likely direction",
+            "Reason"
           ],
           "rows": [
             [
-              "Burst performance",
-              "Fast execution of heavy tasks",
-              "Not optimized for peak throughput"
+              "Tiny battery sensor",
+              "Low-power MCU such as MSP430, Cortex-M0+, or small RV32",
+              "Predictability, sleep modes, low cost, low energy"
             ],
             [
-              "Energy efficiency",
-              "Consumes more power when active",
-              "Better for sustained low-power operation"
+              "Wi-Fi/BLE IoT node",
+              "ESP32-class Xtensa or RISC-V SoC",
+              "Integrated radios, crypto, peripherals, and embedded software support"
             ],
             [
-              "Background processing",
-              "Usually unnecessary",
-              "Good for light services and background tasks"
+              "Hard real-time control",
+              "Cortex-R or high-end Cortex-M with TCM",
+              "Deterministic timing and fast interrupt response"
             ],
             [
-              "System behavior",
-              "Handles demanding foreground workloads",
-              "Keeps the system responsive at lower power"
+              "Industrial gateway with legacy software",
+              "x86/x86-64 platform",
+              "Compatibility with existing OS and application ecosystem"
+            ],
+            [
+              "Smartphone-like rich UI",
+              "Cortex-A-class heterogeneous SoC",
+              "High performance, multimedia, GPUs/NPUs, and power management"
             ]
           ]
-        },
-        {
-          "type": "callout",
-          "style": "info",
-          "text": "big.LITTLE is not just 'more cores.' It is a strategy for matching different types of cores to different classes of workload."
         }
       ],
       "question": {
         "type": "mc",
-        "text": "big.LITTLE refers to:",
+        "text": "Why might an engineer choose an x86 or x86-64 processor in an embedded product?",
         "choices": [
-          "A cache hierarchy with large and small L1 caches",
-          "A heterogeneous architecture combining performance cores and efficiency cores",
-          "A naming convention for symmetric multicore CPUs",
-          "A memory model with large program memory and small data memory"
+          "Because x86 always has the lowest power consumption.",
+          "Because legacy software, Windows/Linux support, or a mature software ecosystem may matter more than minimal power.",
+          "Because x86 is required for Harvard architecture.",
+          "Because x86 eliminates synchronization bugs."
         ],
         "correct": 1,
-        "explanation": "big.LITTLE combines larger performance-oriented cores with smaller, more energy-efficient cores so the system can balance speed and power."
+        "explanation": "x86 is often chosen when compatibility and software ecosystem outweigh embedded-style power or determinism concerns."
       }
     },
     {
-      "section": "Lab",
-      "title": "Lab -- Core Placement and Timing Stability on the ESP32",
-      "subtitle": "Observe, fix, and explain a multicore timing bug",
+      "section": "3.7",
+      "title": "3.7 -- Quantitative Intuition",
+      "subtitle": "Useful numbers, not universal laws",
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "In this lab, your ESP32 runs a timing-critical LED task and a heavy background workload. The starter firmware places the tasks poorly, producing worse timing behavior. Your job is to fix the task placement and explain why the change improves the result."
+          "text": "Architecture tradeoffs are easier to understand when you have a rough sense of scale. The numbers below are order-of-magnitude examples, not values to memorize. They vary with processor design, workload, compiler, memory system, cache state, voltage/frequency, and power-management mode."
         },
         {
-          "type": "callout",
-          "style": "info",
-          "text": "Required hardware: ESP32 DevKit, LED, resistor, pushbutton, breadboard, and jumper wires. The LED indicates timing activity, and the button starts the test run."
+          "type": "comparison_table",
+          "heading": "Order-of-magnitude examples",
+          "columns": [
+            "Quantity",
+            "Rough idea",
+            "Why it matters"
+          ],
+          "rows": [
+            [
+              "Embedded RISC CPI",
+              "Often around 1-2 CPI for simple code on efficient microcontroller-class cores",
+              "Short pipelines and simple instruction flows can make timing easier to reason about"
+            ],
+            [
+              "High-performance CPU CPI",
+              "Can be below 1 CPI for highly parallel instruction streams or much higher when stalled",
+              "Wide CPUs can do a lot per cycle, but stalls and memory delays can dominate"
+            ],
+            [
+              "Power per MHz",
+              "Small MCUs may be in the microwatts-per-MHz range; desktop/server-class CPUs are far higher",
+              "This helps explain coin-cell MCUs versus processors that need much more power and cooling"
+            ],
+            [
+              "Lock or synchronization cost",
+              "Can range from tens to hundreds or more cycles, especially under contention",
+              "Multicore speedup is not free when tasks share data"
+            ],
+            [
+              "Extra-core leakage / idle cost",
+              "An additional core can still consume power even when lightly used",
+              "More cores can improve responsiveness but may hurt battery life if poorly managed"
+            ],
+            [
+              "Energy savings from parallelism or big.LITTLE",
+              "Can be tens of percent for suitable workloads",
+              "Savings depend on whether work can be split efficiently and assigned to the right core"
+            ]
+          ]
         },
         {
           "type": "callout",
           "style": "warning",
-          "text": "If the result still shows poor timing after your changes, check task core placement, task yield behavior, and wiring before retrying."
+          "text": "Use these values for scale. The lab's main point is not an exact cycle count; it is that heavy work, shared state, and contention can create measurable timing problems."
+        }
+      ],
+      "question": {
+        "type": "mc",
+        "text": "How should students use approximate CPI, power, and synchronization numbers from this chapter?",
+        "choices": [
+          "As exact constants that apply to every processor.",
+          "As rough engineering intuition that depends on implementation and workload.",
+          "As proof that multicore always saves energy.",
+          "As values that only apply to CISC processors."
+        ],
+        "correct": 1,
+        "explanation": "The numbers are useful for scale, but real values depend on the processor, workload, compiler, memory behavior, and power mode."
+      }
+    },
+    {
+      "section": "Lab",
+      "title": "Lab -- Timing Stability and Shared-Buffer Behavior on the ESP32",
+      "subtitle": "Observe, fix, and explain a multicore timing problem",
+      "content_blocks": [
+        {
+          "type": "key_idea",
+          "text": "In this lab, the ESP32 runs a producer/consumer timing test using a small shared buffer. The starter firmware includes intentionally inefficient timing-path behavior, including heavy consumer work and shared-state access that can contribute to missed events or unstable timing."
+        },
+        {
+          "type": "callout",
+          "style": "info",
+          "text": "Required hardware: ESP32 DevKit, LED, current-limiting resistor, pushbutton, breadboard, and jumper wires. The LED indicates timing activity, and the button starts the test run."
+        },
+        {
+          "type": "callout",
+          "style": "warning",
+          "text": "If the result still shows poor timing, inspect the producer/consumer behavior, shared buffer access, task delays/yields, and which work belongs on the timing-critical path."
         }
       ],
       "question": {
         "type": "hw_result",
         "q_id": "q_lab1",
         "text": "Your ESP32 will automatically submit timing telemetry for this lab.",
-        "explanation": "The firmware will eventually auto-submit a timing result string containing blink count, jitter, deadline information, and core placement details."
+        "explanation": "The firmware submits a timing result string such as [timing:produced=X consumed=Y missed=Z backlog=B producer_core=A consumer_core=B status=PASS]."
       }
     },
     {
       "section": "Lab",
-      "title": "Lab Reflection -- Why Did the Timing Improve?",
-      "subtitle": "Use your hardware result to explain the architectural tradeoff",
+      "title": "Lab Reflection -- Explain the Timing Behavior",
+      "subtitle": "Use your measured result to connect code behavior to architecture",
       "content_blocks": [
         {
           "type": "key_idea",
-          "text": "The point of the lab is not just to make the output pass. It is to connect the measured behavior to Chapter 3's architectural ideas: concurrency, contention, isolation, and the tradeoff between multicore flexibility and complexity."
+          "text": "The point of the lab is not just to make the output pass. It is to connect the measured behavior to Chapter 3 ideas: concurrency, contention, shared state, isolation, and the cost of coordinating work on a multicore system."
         },
         {
           "type": "bullet_list",
           "heading": "Ideas to reference in your explanation:",
           "items": [
-            "Competition between a timing-critical task and a heavy background task",
-            "Core placement and workload isolation",
-            "Timing jitter and missed deadlines",
-            "Why multicore can improve responsiveness but also introduce design complexity"
+            "A timing-critical task competing with heavy background work",
+            "Shared-buffer contention or inefficient shared-state access",
+            "Latency, jitter, missed events, or backlog",
+            "Why isolating or reducing heavy work on the timing path can improve responsiveness",
+            "Why multicore can help but also adds synchronization and debugging complexity"
           ]
         }
       ],
       "question": {
         "type": "free_response",
         "q_id": "q_lab2",
-        "text": "Explain why placing a timing-critical task and a heavy background task on the same core can increase timing jitter or missed deadlines. Then explain why moving or isolating the heavy task can improve behavior.",
-        "placeholder": "Example: The timing-critical task and the background task were competing for the same core, which caused ...",
-        "hint": "Use terms like contention, timing, latency, jitter, missed deadlines, scheduling, or isolation if they apply."
+        "text": "Explain why heavy background work or inefficient shared-buffer access can increase timing jitter, latency, missed events, or backlog in a multicore embedded system. Then explain how cleaner task separation or reducing work on the timing-critical path improves behavior.",
+        "placeholder": "Example: The timing-critical path was affected because ...",
+        "hint": "Use terms like contention, shared buffer, latency, jitter, missed events, backlog, core placement, scheduling, or isolation if they apply."
       }
     }
   ],
@@ -322,42 +407,47 @@
     },
     {
       "id": "q2",
-      "text": "A designer builds an ESP32-based device with a timing-critical LED control task and a heavy background processing task. Both are placed on the same core. In the context of Chapter 3, explain why the device may show jitter, missed deadlines, or unstable timing behavior.",
+      "text": "A product must run legacy x86 software and a desktop-class operating system, even though it will consume more power than a small MCU. Explain why a designer might choose a CISC/x86 platform anyway, and name the tradeoff.",
       "type": "short_answer"
     },
     {
       "id": "q3",
-      "text": "Compare Harvard and von Neumann memory architectures. In what kind of system behavior would separating instruction and data paths be especially useful?",
+      "text": "Compare Harvard and von Neumann memory architectures. Explain how separate instruction/data paths can reduce contention, and why modified Harvard systems do not always require two completely separate physical memories.",
       "type": "short_answer"
     },
     {
       "id": "q4",
-      "text": "When would a designer choose a CISC core over a RISC core? Give one realistic example and explain the tradeoff.",
+      "text": "A multicore ESP32 program has a timing-critical producer/LED path and a heavy consumer/background path using shared state. Explain why the device may show jitter, missed events, latency, or backlog, and how cleaner task separation or reduced shared-buffer work can help.",
       "type": "short_answer"
     },
     {
       "id": "q5",
-      "text": "A smartphone-like device has bursty foreground workloads, long idle periods, and background housekeeping tasks. Explain why a big.LITTLE-style heterogeneous architecture might be useful.",
+      "text": "The chapter gives approximate CPI, power-per-MHz, synchronization, leakage, and energy-saving examples. Explain how students should use these numbers and why they should not treat them as universal constants.",
       "type": "short_answer"
     },
     {
       "id": "q_mc1",
-      "text": "Which statement best describes Harvard architecture?\n\nA. Instructions and data always share one bus\nB. Instructions and data use separate paths\nC. Harvard architecture only exists in desktop CPUs\nD. Harvard architecture eliminates the need for RAM",
+      "text": "Which statement best separates ISA from microarchitecture?\n\nA. The ISA is what software targets; microarchitecture is how a specific processor implements it.\nB. The ISA is the chip's clock speed; microarchitecture is the programming language.\nC. ISA only matters for RISC; microarchitecture only matters for CISC.\nD. ISA and microarchitecture always mean the same thing.",
       "type": "short_answer"
     },
     {
       "id": "q_mc2",
-      "text": "Which is the main tradeoff of multicore systems compared with single-core systems?\n\nA. They eliminate all timing problems\nB. They reduce synchronization complexity\nC. They improve concurrency but add synchronization and debug complexity\nD. They can only be used in x86 systems",
+      "text": "Which statement best captures the revised chapter's RISC/CISC takeaway?\n\nA. RISC is always faster than CISC.\nB. CISC is obsolete in all embedded systems.\nC. RISC often helps with simplicity, power, and predictability, while CISC/x86 can be valuable for compatibility and mature software ecosystems.\nD. RISC processors cannot use caches.",
       "type": "short_answer"
     },
     {
       "id": "q_mc3",
-      "text": "Mixed criticality refers to:\n\nA. Mixing analog and digital peripherals\nB. Mixing different safety, timing, or reliability requirements in one system\nC. Mixing instruction sets inside one core\nD. Mixing battery chemistries in one device",
+      "text": "Which statement best describes Harvard architecture?\n\nA. Instructions and data always share one bus.\nB. Instructions and data use separate paths.\nC. Harvard architecture only exists in desktop CPUs.\nD. Harvard architecture eliminates the need for RAM.",
       "type": "short_answer"
     },
     {
       "id": "q_mc4",
-      "text": "big.LITTLE refers to:\n\nA. A heterogeneous architecture with performance and efficiency cores\nB. A symmetric multicore system with equal cores only\nC. A memory hierarchy with large and small cache lines\nD. A programming model for Harvard architectures",
+      "text": "Which is the main tradeoff of multicore systems compared with single-core systems?\n\nA. They eliminate all timing problems.\nB. They reduce synchronization complexity.\nC. They improve concurrency but add synchronization and debug complexity.\nD. They can only be used in x86 systems.",
+      "type": "short_answer"
+    },
+    {
+      "id": "q_mc5",
+      "text": "big.LITTLE refers to:\n\nA. A heterogeneous architecture with performance and efficiency cores.\nB. A symmetric multicore system with equal cores only.\nC. A memory hierarchy with large and small cache lines.\nD. A programming model for Harvard architectures.",
       "type": "short_answer"
     },
     {
@@ -372,15 +462,16 @@
     },
     {
       "id": "q_lab2",
-      "text": "Reflection: Explain why moving a heavy background task away from a timing-critical task can improve timing stability in a multicore system.",
+      "text": "Reflection: Explain why heavy background work, shared-buffer contention, or poor task isolation can harm timing stability in a multicore embedded system.",
       "type": "short_answer"
     }
   ],
   "references": [
     "CECS 460 Textbook -- Chapter 3: CPU Architectures and Core Comparisons",
-    "CECS 460 Textbook -- Section 3.1: ISA, Microarchitecture, and Instruction Set Philosophies",
+    "CECS 460 Textbook -- Section 3.1: ISA, Microarchitecture, and RISC/CISC Tradeoffs",
     "CECS 460 Textbook -- Section 3.2: Memory Architectures and Hierarchy in SoCs",
-    "CECS 460 Textbook -- Section 3.3: Single-Core, Multi-Core, and Heterogeneous SoC Designs",
-    "CECS 460 Textbook -- Section 3.4: Survey of Common Processor Families"
+    "CECS 460 Textbook -- Section 3.3: Single-Core, Multicore, and Heterogeneous SoC Designs",
+    "CECS 460 Textbook -- Section 3.4: Survey of Common Processor Families",
+    "CECS 460 Textbook -- Section 3.7: Quantitative Intuition"
   ]
 }
