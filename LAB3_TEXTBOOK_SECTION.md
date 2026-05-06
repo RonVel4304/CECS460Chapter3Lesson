@@ -1,20 +1,24 @@
-# Lab 3 - CPU Architectures, Task Placement, and Timing Stability on the ESP32
+# Lab 3 - CPU Architecture, Core Placement, and Timing Stability on the ESP32
 
 ## Overview
 
-This lab aligns with **Chapter 3 - CPU Architectures and Core Comparisons** by using the ESP32 as a concrete example of how processor architecture choices affect embedded-system behavior. The revised chapter emphasizes a design question that appears throughout this lab:
+This lab aligns with **Chapter 3 - CPU Architectures and Core Comparisons** by using a real ESP32 timing problem instead of a purely theoretical benchmark. The revised chapter asks you to think like an embedded-system designer:
 
-> What does this architectural choice make easier, and what does it make harder?
+> What does this architecture choice make easier, and what does it make harder?
 
-The ESP32 family is useful because it exposes several Chapter 3 ideas in a device you can program directly:
+In this lab, the architecture choice is **where timing-critical work and heavy background work run** on an ESP32. The provided firmware creates two FreeRTOS tasks:
 
-- It uses **microcontroller-class 32-bit embedded cores**, including Xtensa cores on classic ESP32 boards and RISC-V cores on newer ESP32 variants.
-- It shows why **ISA and microarchitecture are different**: the ISA defines what software targets, while the implementation and SoC memory system determine timing behavior.
-- It uses a **modified Harvard-style memory organization**, where separate instruction and data paths exist near the core even though C code usually sees a mostly unified programming model.
-- Classic ESP32 boards provide **dual-core FreeRTOS task placement**, making them a strong case study for concurrency, contention, jitter, missed deadlines, and workload isolation.
-- Newer ESP32 variants may be single-core, dual-core, or heterogeneous, giving you a chance to reason about why core count alone does not define system quality.
+- a **timing-critical blink task** that toggles an LED at a fixed interval and measures timing jitter;
+- a **heavy load task** that performs repeated computation and can interfere with the timing-critical task if it is placed poorly or allowed to hog CPU time.
 
-In this lab, you will identify your ESP32 core family, measure a simple timing workload, and run or analyze a task-placement experiment. The goal is not to produce the fastest benchmark. The goal is to connect observed behavior to architecture tradeoffs.
+The starting code intentionally contains two problems:
+
+1. The heavy load task is pinned to the **same core** as the timing-critical blink task.
+2. The heavy load task performs a long loop without yielding after each burst of work.
+
+Your job is to fix those problems, run the timing test, and explain the result using Chapter 3 concepts: **ISA vs. microarchitecture, RISC vs. CISC, modified Harvard memory organization, single-core vs. multicore design, scheduling, contention, jitter, missed deadlines, and workload isolation**.
+
+The goal is not to prove that one core is always better than another. The goal is to observe that architecture and software placement affect timing behavior in real embedded systems.
 
 ---
 
@@ -23,13 +27,14 @@ In this lab, you will identify your ESP32 core family, measure a simple timing w
 By the end of this lab you will be able to:
 
 1. Distinguish between **ISA** and **microarchitecture** using the ESP32 as an example.
-2. Explain why the ESP32 is associated with **embedded RISC-style cores** without claiming that RISC automatically means highest raw performance.
+2. Explain why ESP32-class devices use **embedded RISC-style cores** without claiming that RISC automatically means highest raw performance.
 3. Describe the ESP32's **modified Harvard-style memory organization** at a high level.
-4. Measure simple execution timing and explain why timing depends on clock rate, compiler output, memory behavior, and workload.
-5. Explain how **task placement** can create or reduce timing jitter in a multicore embedded system.
-6. Identify how shared buffers, scheduling, memory contention, and long-running background work can cause backlog or missed deadlines.
-7. Decide when a **single-core**, **symmetric multicore**, or **heterogeneous** SoC is the better engineering choice.
-8. Connect processor-family choices, including MSP430, Arm Cortex-M, ESP32 Xtensa/RISC-V, Arm Cortex-A/R, and x86, to power, determinism, compatibility, and software ecosystem constraints.
+4. Explain why timing behavior depends on core placement, scheduling, memory behavior, task priority, and workload behavior.
+5. Use FreeRTOS task pinning to separate timing-critical work from heavier background work on a dual-core ESP32.
+6. Interpret telemetry fields such as `blink_count`, `max_jitter_us`, `missed_deadlines`, `blink_task_core`, `load_task_core`, and `status`.
+7. Explain how long-running background work can cause **jitter** or **missed deadlines** even when the average workload seems reasonable.
+8. Decide when a **single-core**, **dual-core**, or **heterogeneous** SoC is the better engineering choice.
+9. Connect processor-family choices, including MSP430, Arm Cortex-M, ESP32 Xtensa/RISC-V, Arm Cortex-A/R, and x86, to power, determinism, compatibility, and software ecosystem constraints.
 
 ---
 
@@ -37,16 +42,24 @@ By the end of this lab you will be able to:
 
 | Item | Requirement |
 |------|-------------|
-| Board | ESP32 development board |
+| Board | ESP32 development board, preferably a classic dual-core ESP32 DevKit |
 | Framework | Arduino-ESP32 using Arduino IDE or PlatformIO |
-| Libraries | Standard ESP32 Arduino core and FreeRTOS APIs included with the core |
-| Measurement API | `micros()` or `esp_timer_get_time()` |
+| Main sketch | `CECS460_Lab3_AES.ino` |
+| Helper files | `ClassroomClient.cpp`, `ClassroomClient.h`, `LabConfig.h` |
+| Libraries | `PubSubClient` and `ArduinoJson` |
 | Serial Monitor | 115200 baud |
-| Optional feature | Dual-core task pinning using `xTaskCreatePinnedToCore()` |
+| Network | Classroom WiFi/MQTT server, if using live submission |
+| LED | GPIO 2 -> 220 ohm resistor -> LED anode; LED cathode -> GND |
+| Button | One side -> GPIO 4; other side -> GND |
 
-No external hardware is required.
+The button uses `INPUT_PULLUP`:
 
-> **Board note:** Classic ESP32 boards usually have two Xtensa LX6 cores. ESP32-C3 boards are single-core RISC-V. ESP32-C6-class devices should not be treated as ordinary symmetric dual-core ESP32 boards; they include different RISC-V cores intended for different roles. If your board does not support symmetric dual-core task pinning, complete the multicore section conceptually using your Part 1 observations.
+| Button state | GPIO reading |
+|--------------|--------------|
+| Not pressed | HIGH |
+| Pressed | LOW |
+
+> **Board note:** The provided task-placement fix assumes a dual-core ESP32 with cores 0 and 1. Classic ESP32 boards usually fit this model. ESP32-C3 boards are single-core RISC-V and cannot run the same dual-core pinning experiment directly. ESP32-C6-class devices include different RISC-V cores intended for different roles and should not be treated as ordinary symmetric dual-core ESP32 boards. If your board is not a classic dual-core ESP32, complete the code sections that apply and answer the multicore questions conceptually.
 
 ---
 
@@ -56,15 +69,15 @@ This lab is built around five Chapter 3 ideas.
 
 ### ISA vs. Microarchitecture
 
-The **instruction set architecture (ISA)** is the contract between software and hardware. It defines the instructions, registers, memory behavior, interrupt model, and toolchain expectations that software can rely on.
+The **instruction set architecture (ISA)** is the software-visible contract. It defines the instructions, registers, memory behavior, interrupt model, and toolchain expectations that software can rely on.
 
 The **microarchitecture** is the hardware strategy used to implement that ISA. It includes pipeline structure, cache behavior, clock frequency, interrupt latency, memory buses, and power-management behavior.
 
-Two processors can implement the same ISA but behave very differently. For example, two RISC-V processors may both run RV32 code, but one may be a tiny in-order microcontroller core while another may have larger caches, branch prediction, and higher frequency. The ISA tells you what the program can say; the microarchitecture and SoC integration affect how quickly, efficiently, and predictably the program runs.
+The ESP32 is useful because it reminds us that an ISA label does not fully explain observed behavior. A timing problem in this lab is not solved by saying “Xtensa is RISC-style” or “RISC is fast.” The timing behavior depends on the **implementation**, the **FreeRTOS scheduler**, the **core assignment**, task priorities, and how often a long-running task yields.
 
 ### RISC vs. CISC
 
-Chapter 3 warns against the misconception that **RISC is always faster than CISC**. Embedded RISC-style cores are often attractive because they can be compact, power-efficient, predictable, and easy to integrate with peripherals. Desktop-class x86 processors can still be much faster in raw wall-clock performance because of high clock speeds, large caches, out-of-order execution, branch prediction, and wide execution pipelines.
+Chapter 3 warns against the misconception that **RISC is always faster than CISC**. Embedded RISC-style cores are often attractive because they can be compact, power-efficient, predictable, and easy to integrate with peripherals. Desktop-class x86 processors can still be much faster in raw wall-clock performance because they use high clock speeds, large caches, branch prediction, out-of-order execution, and wide execution pipelines.
 
 A better engineering question is:
 
@@ -74,29 +87,27 @@ A better engineering question is:
 
 A simple **von Neumann** model uses one shared path for instructions and data. A pure **Harvard** model separates instruction and data memory. Real SoCs often use a **modified Harvard** approach: separate instruction and data paths near the core, caches or fast internal memory regions, and a programming model that still feels mostly unified to C code.
 
-On ESP32-class devices, memory placement can matter. Code running through flash cache may behave differently from code or interrupt handlers placed in internal memory. This is why architecture affects real timing, even when the C program looks ordinary.
+On ESP32-class devices, timing can be affected by instruction fetch, cache behavior, internal memory, flash access, and shared memory traffic. This lab does not require you to rewrite linker scripts or place functions in IRAM. Instead, you should recognize that the CPU core is not isolated from the surrounding SoC. Timing depends on the core, the scheduler, and the memory system.
 
 ### Single-Core, Multicore, and Workload Isolation
 
-A single-core system is often simpler, lower power, easier to debug, and easier to reason about. A multicore system can improve responsiveness when tasks are mostly independent, but it also introduces synchronization, shared-data bugs, memory contention, and jitter.
+A single-core system is often simpler, lower power, easier to debug, and easier to reason about. A multicore system can improve responsiveness when tasks are mostly independent, but it also introduces synchronization, shared-data bugs, memory contention, scheduling surprises, and jitter.
 
-The revised Chapter 3 emphasis is not "more cores are always better." The emphasis is:
+This lab demonstrates a practical multicore lesson:
 
-> Multicore can improve responsiveness when task placement and shared data are handled carefully.
+> Multicore can improve responsiveness when timing-critical work and heavy background work are placed carefully.
 
-### Producer-Consumer Timing
+The correct lesson is **not** “core 1 is always better than core 0.” The correct lesson is that workload placement changes timing behavior.
 
-Many embedded systems use a **producer-consumer** pattern. One task produces samples, packets, events, or readings. Another task consumes and processes them. A shared queue or buffer connects the two.
+### Jitter and Missed Deadlines
 
-This pattern is useful, but it creates design questions:
+The blink task is designed to run periodically. It uses `vTaskDelayUntil()` to request a fixed timing interval. During the test, it compares the actual elapsed time with the target interval and records:
 
-- What happens if the producer runs faster than the consumer?
-- What happens when the buffer fills?
-- Does a heavy background task delay a timing-critical task?
-- Do tasks share data safely?
-- Does moving tasks to different cores reduce interference or add synchronization cost?
+- **jitter**, meaning how far the actual timing moved away from the target timing;
+- **missed deadlines**, meaning the jitter exceeded the configured failure threshold;
+- **pass/fail status**, based on whether the measured timing stayed within the allowed limit.
 
-Your lab data should help answer these questions.
+This is the key embedded-systems idea: average speed is not enough. For timing-critical systems, consistency matters.
 
 ---
 
@@ -104,65 +115,45 @@ Your lab data should help answer these questions.
 
 You will complete four activities:
 
-1. **Identify the processor architecture** of your board and relate it to the Chapter 3 taxonomy.
-2. **Measure a simple timing workload** and explain why the result is not just an ISA property.
-3. **Run or analyze a task-placement experiment** involving timing-critical and background work.
-4. **Compare processor families** using engineering tradeoffs instead of slogans.
+1. **Inspect and classify the ESP32 architecture** used in the lab.
+2. **Run the provided timing test with the intentional bug** and record the result.
+3. **Fix the task placement and yielding behavior**, rerun the timing test, and compare the result.
+4. **Explain the results using Chapter 3 tradeoffs** instead of simply saying that the code passed or failed.
 
 The central lab takeaway is:
 
-> Architecture affects responsiveness, not just peak speed. Poor task placement, shared buffers, and memory contention can make a system miss deadlines even when the CPU seems fast enough.
+> Architecture affects responsiveness, not just peak speed. Poor task placement and long-running background work can make a system miss deadlines even when the CPU appears fast enough.
 
 ---
 
-## 3.9.5 Part 1 - Identify the Core and Classify It
+## 3.9.5 Part 1 - Inspect the Provided Firmware and Classify the System
 
-Upload and run a short sketch that prints information about the board, CPU frequency, and available cores.
+Open the provided files:
 
-Example starting point:
+- `CECS460_Lab3_AES.ino`
+- `ClassroomClient.cpp`
+- `ClassroomClient.h`
+- `LabConfig.h`
 
-```cpp
-#include <Arduino.h>
-#include "esp_system.h"
-#include "esp_chip_info.h"
+Most of your work is in `CECS460_Lab3_AES.ino`. The helper files handle WiFi, MQTT, classroom slot/token assignment, student URL printing, and answer publishing.
 
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
+In `LabConfig.h`, confirm the hardware and test settings:
 
-  esp_chip_info_t chip_info;
-  esp_chip_info(&chip_info);
+| Setting | Meaning |
+|---------|---------|
+| `LED_PIN = 2` | LED output pin |
+| `BUTTON_PIN = 4` | Pushbutton input pin |
+| `LED_PERIOD_MS = 250` | Target blink-task period |
+| `TEST_DURATION_MS = 10000` | Test duration, in milliseconds |
+| `JITTER_FAIL_US = 20000` | Jitter threshold for a missed deadline |
 
-  Serial.println("ESP32 architecture identification");
-  Serial.printf("Chip model code: %d\n", chip_info.model);
-  Serial.printf("CPU frequency: %lu MHz\n", getCpuFrequencyMhz());
-  Serial.printf("Reported cores: %d\n", chip_info.cores);
-  Serial.printf("SDK version: %s\n", esp_get_idf_version());
-
-#if CONFIG_IDF_TARGET_ESP32
-  Serial.println("Likely core family: Xtensa LX6, classic ESP32");
-#elif CONFIG_IDF_TARGET_ESP32S3
-  Serial.println("Likely core family: Xtensa LX7-class, ESP32-S3");
-#elif CONFIG_IDF_TARGET_ESP32C3
-  Serial.println("Likely core family: RISC-V, ESP32-C3");
-#elif CONFIG_IDF_TARGET_ESP32C6
-  Serial.println("Likely core family: RISC-V, ESP32-C6");
-#else
-  Serial.println("Core family: check board documentation");
-#endif
-}
-
-void loop() {
-}
-```
-
-Record your observations:
+Record your board information:
 
 | Observation | Your value |
 |-------------|------------|
 | Chip/board model | ________ |
-| CPU frequency | ________ |
-| Number of reported cores | ________ |
+| CPU frequency, if known | ________ |
+| Number of cores | ________ |
 | Core family, such as Xtensa or RISC-V | ________ |
 | Development framework/version | ________ |
 
@@ -171,276 +162,180 @@ Answer these questions:
 1. Is your board best described as a **microcontroller-class SoC** or an **application processor**?
 2. Which parts of your answer describe the **ISA or core family**, and which describe the **specific implementation or SoC**?
 3. Is this board closer to the embedded RISC-style examples from Chapter 3, or to desktop/server x86 systems?
-4. What kinds of products would this core family be appropriate for?
-5. What kinds of products would this core family be a poor fit for?
+4. What products would this kind of ESP32-class device be appropriate for?
+5. What products would this kind of device be a poor fit for?
 
 ---
 
-## 3.9.6 Part 2 - Timing a Simple Workload
+## 3.9.6 Part 2 - Run the Buggy Timing Test
 
-Create a simple loop-based benchmark such as one of the following:
+Wire the LED and button as described in the requirements section. Install the required Arduino libraries if needed:
 
-- Integer accumulation
-- Array sum
-- Small multiply-add loop
-- Bit manipulation loop
-- Lightweight checksum
+- `PubSubClient`
+- `ArduinoJson`
 
-Measure execution time for a fixed number of iterations using `esp_timer_get_time()` or `micros()`.
-
-Example:
+Upload the starting version of the sketch. In the student TODO area, notice the intentional bug:
 
 ```cpp
-#include <Arduino.h>
-#include "esp_timer.h"
-
-volatile uint32_t sink = 0;
-
-uint32_t workload(uint32_t n) {
-  uint32_t x = 0;
-  for (uint32_t i = 0; i < n; i++) {
-    x = (x * 1664525UL) + 1013904223UL;
-    x ^= (x >> 13);
-  }
-  return x;
-}
-
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-
-  const uint32_t N = 200000;
-  const int trials = 10;
-  uint64_t total_us = 0;
-
-  for (int t = 0; t < trials; t++) {
-    uint64_t start = esp_timer_get_time();
-    sink = workload(N);
-    uint64_t end = esp_timer_get_time();
-
-    uint64_t elapsed = end - start;
-    total_us += elapsed;
-    Serial.printf("trial=%d time_us=%llu sink=%lu\n", t, elapsed, sink);
-    delay(100);
-  }
-
-  Serial.printf("average_us=%llu\n", total_us / trials);
-}
-
-void loop() {
-}
+const int BLINK_TASK_CORE = 0;
+const int LOAD_TASK_CORE = 0;   // BUG: change this to 1
 ```
 
-Record your results:
+This means both tasks start on core 0:
 
-| Measurement | Your value |
-|-------------|------------|
-| Workload used | ________ |
-| Iteration count | ________ |
-| Number of trials | ________ |
-| Minimum time | ________ |
-| Maximum time | ________ |
-| Average time | ________ |
-| Approximate jitter, max minus min | ________ |
+- `BlinkTask` is timing-critical and has priority 2.
+- `LoadTask` is background load and has priority 1.
 
-### Interpretation questions
+Even though the blink task has a higher priority, the load task performs a large compute loop repeatedly. In the buggy version, the heavy background task is placed where it can interfere with the timing-critical task.
 
-1. Does this timing result prove that the **ISA** is fast, or does it reflect the **microarchitecture, clock rate, compiler output, memory behavior, and workload** of this specific system?
-2. Why does Chapter 3 say that RISC versus CISC is not a simple speed ranking?
-3. Would this same loop necessarily run faster on x86? Explain why the answer is not simply "yes because x86 is CISC" or "no because RISC is better."
-4. If your repeated trials varied, what could cause that variation?
-5. Why is average execution time not always enough for a real-time embedded system?
+Open the Serial Monitor at **115200 baud**. Wait for the system to print that it is ready. Press the button to start the timing test.
+
+The test runs for `TEST_DURATION_MS`, which is 10 seconds in the provided configuration.
+
+At the end, record the printed results:
+
+| Measurement | Buggy version result |
+|-------------|----------------------|
+| `blink_count` | ________ |
+| `max_jitter_us` | ________ |
+| `missed_deadlines` | ________ |
+| `button_press_count` | ________ |
+| `blink_task_core` | ________ |
+| `load_task_core` | ________ |
+| `status` | ________ |
+
+The firmware also builds a classroom telemetry string similar to this:
+
+```text
+[timing:student_id=... produced=... consumed=... missed=... backlog=0 producer_core=... consumer_core=... max_jitter_us=... status=...]
+```
+
+For this specific sketch, `produced` and `consumed` both map to the blink count, while `missed` maps to missed deadlines. `backlog` is reported as 0 because this version does not use an actual queue. The producer/consumer labels are used to match the classroom telemetry format and the Chapter 3 discussion of task interaction.
+
+### Buggy-version questions
+
+1. Did the starting version pass or fail?
+2. What was the maximum measured jitter?
+3. How many missed deadlines were recorded?
+4. Which cores did the blink task and load task actually run on?
+5. Why can a background task interfere with a timing-critical task even when the timing-critical task has higher priority?
+6. Why is this an architecture and scheduling problem, not just a “slow code” problem?
 
 ---
 
-## 3.9.7 Part 3 - Task Placement and Timing Stability
+## 3.9.7 Part 3 - Fix the Lab
 
-This is the main revised Chapter 3 lab activity.
+Make both required fixes.
 
-You will create or run a small producer-consumer style experiment:
+### Fix 1: move the heavy load task to the other core
 
-- A **producer task** represents timing-critical work, such as sampling a sensor or receiving packets.
-- A **consumer task** represents processing, logging, encryption, formatting, printing, or other background work.
-- A shared queue or buffer connects them.
-- The system reports telemetry such as produced items, consumed items, missed items, backlog, task core placement, and pass/fail status.
-
-The purpose is to observe how task placement affects timing stability.
-
-### Experiment idea
-
-Run two configurations:
-
-- **Configuration A - shared core:** producer and consumer run on the same core, or both are allowed to compete without careful placement.
-- **Configuration B - separated work:** timing-critical work is isolated from heavier background work, often by pinning tasks to different cores on a dual-core ESP32.
-
-If your board is single-core, run only the shared-core version and answer the separated-core questions conceptually.
-
-### Example dual-core task structure
-
-This sketch is intentionally simple. Your instructor may provide a more complete version with stricter pass/fail rules.
+Change this:
 
 ```cpp
-#include <Arduino.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "esp_timer.h"
-
-struct Sample {
-  uint32_t sequence;
-  uint64_t t_us;
-};
-
-QueueHandle_t q;
-
-volatile uint32_t produced = 0;
-volatile uint32_t consumed = 0;
-volatile uint32_t missed = 0;
-
-const uint32_t PRODUCER_PERIOD_MS = 10;
-const uint32_t HEAVY_WORK = 60000;
-
-void heavyCompute() {
-  volatile uint32_t x = 0;
-  for (uint32_t i = 0; i < HEAVY_WORK; i++) {
-    x = (x * 1664525UL) + 1013904223UL;
-  }
-}
-
-void producerTask(void *param) {
-  TickType_t lastWake = xTaskGetTickCount();
-
-  while (true) {
-    Sample s;
-    s.sequence = produced;
-    s.t_us = esp_timer_get_time();
-
-    if (xQueueSend(q, &s, 0) == pdTRUE) {
-      produced++;
-    } else {
-      missed++;
-    }
-
-    vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(PRODUCER_PERIOD_MS));
-  }
-}
-
-void consumerTask(void *param) {
-  Sample s;
-
-  while (true) {
-    if (xQueueReceive(q, &s, pdMS_TO_TICKS(20)) == pdTRUE) {
-      heavyCompute();
-      consumed++;
-    }
-  }
-}
-
-void monitorTask(void *param) {
-  while (true) {
-    UBaseType_t backlog = uxQueueMessagesWaiting(q);
-
-    Serial.printf(
-      "[timing:produced=%lu consumed=%lu missed=%lu backlog=%u producer_core=%d consumer_core=%d status=%s]\n",
-      produced,
-      consumed,
-      missed,
-      backlog,
-      xPortGetCoreID(),
-      -1,
-      missed == 0 ? "PASS" : "CHECK"
-    );
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-
-  q = xQueueCreate(16, sizeof(Sample));
-
-  // Configuration A: try pinning both producer and consumer to the same core.
-  // Configuration B: try pinning producer and consumer to different cores on dual-core boards.
-  // Change these values as directed by your instructor.
-  const int PRODUCER_CORE = 1;
-  const int CONSUMER_CORE = 1;
-
-  xTaskCreatePinnedToCore(producerTask, "producer", 4096, NULL, 3, NULL, PRODUCER_CORE);
-  xTaskCreatePinnedToCore(consumerTask, "consumer", 4096, NULL, 2, NULL, CONSUMER_CORE);
-  xTaskCreatePinnedToCore(monitorTask, "monitor", 4096, NULL, 1, NULL, 0);
-}
-
-void loop() {
-}
+const int BLINK_TASK_CORE = 0;
+const int LOAD_TASK_CORE = 0;   // BUG: change this to 1
 ```
 
-> **Important:** The printed `status=PASS` or `status=CHECK` is not the whole story. The important part is explaining what changed and why.
+To this:
 
-### Record your results
+```cpp
+const int BLINK_TASK_CORE = 0;
+const int LOAD_TASK_CORE = 1;
+```
 
-| Configuration | Producer core | Consumer core | Produced | Consumed | Missed | Backlog trend | Notes |
-|---------------|---------------|---------------|----------|----------|--------|---------------|-------|
-| A: shared core or default placement | ________ | ________ | ________ | ________ | ________ | ________ | ________ |
-| B: separated or improved placement | ________ | ________ | ________ | ________ | ________ | ________ | ________ |
+This separates the timing-critical blink task from the heavy background load task on a dual-core ESP32.
 
-### Analysis questions
+### Fix 2: add a small yield/delay after the heavy loop
 
-1. Which configuration had more missed events, backlog, or timing instability?
-2. What was competing with what: CPU time, queue space, memory bandwidth, serial printing, locks, or something else?
-3. Did moving work to a different core improve responsiveness? Why or why not?
-4. Why does Chapter 3 say that multicore is useful mainly when tasks are relatively independent?
-5. What costs or risks appear when moving from single-core to multicore?
-6. Why can poor task placement create jitter even when the average workload seems small?
-7. Why is "core 1 good, core 0 bad" the wrong lesson?
-8. What would you change to make the design more robust: queue size, task priorities, less printing, shorter critical sections, different task placement, or reduced background workload?
+In `loadTask()`, find this section:
+
+```cpp
+for (uint32_t i = 0; i < 500000; i++) {
+  dummy += (i ^ 0x55AA55AA);
+}
+
+// TODO 2:
+// Add a small delay/yield here so the heavy task does not hog CPU time.
+// Example fix:
+// vTaskDelay(1);
+```
+
+Add the delay after the loop:
+
+```cpp
+for (uint32_t i = 0; i < 500000; i++) {
+  dummy += (i ^ 0x55AA55AA);
+}
+
+vTaskDelay(1);
+```
+
+This gives the scheduler a chance to run other work and prevents the load task from behaving like a constant CPU hog.
+
+Upload the fixed version, open the Serial Monitor, and press the button to rerun the timing test.
+
+Record the fixed-version results:
+
+| Measurement | Fixed version result |
+|-------------|----------------------|
+| `blink_count` | ________ |
+| `max_jitter_us` | ________ |
+| `missed_deadlines` | ________ |
+| `button_press_count` | ________ |
+| `blink_task_core` | ________ |
+| `load_task_core` | ________ |
+| `status` | ________ |
+
+Now compare both runs:
+
+| Metric | Buggy version | Fixed version | Improved? |
+|--------|---------------|---------------|-----------|
+| Blink task core | ________ | ________ | ________ |
+| Load task core | ________ | ________ | ________ |
+| Maximum jitter | ________ | ________ | ________ |
+| Missed deadlines | ________ | ________ | ________ |
+| Status | ________ | ________ | ________ |
+
+### Fixed-version questions
+
+1. Did moving the load task to the other core improve timing stability?
+2. Did adding `vTaskDelay(1)` improve scheduler behavior? Explain.
+3. Which fix do you think mattered more on your board, and why?
+4. Why is the correct lesson not simply “always use core 1 for background work”?
+5. What would happen on a single-core board where the load task could not be moved to another core?
+6. Why might a real design use queues, mutexes, DMA buffers, or interrupt-safe memory regions instead of only task pinning?
 
 ---
 
-## 3.9.8 Part 4 - Optional Memory Placement Observation
+## 3.9.8 Part 4 - Connect the Results to Chapter 3 Concepts
 
-Chapter 3 also discusses memory organization: caches, internal SRAM, flash, IRAM, and modified Harvard-style instruction/data paths. This optional section connects that idea to timing.
+Use your measurements to answer the following.
 
-Compare two cases if your board and framework support it:
+### ISA vs. microarchitecture
 
-- **Case A:** Run a benchmark function in its default code location.
-- **Case B:** Place the same function in IRAM using `IRAM_ATTR`.
+1. Which parts of this lab are related to the ISA or core family?
+2. Which parts are related to microarchitecture, SoC integration, or runtime behavior?
+3. Why would it be incorrect to say, “The code passed because RISC is fast”?
 
-Example pattern:
+### RISC vs. CISC
 
-```cpp
-uint32_t defaultWorkload(uint32_t n) {
-  uint32_t x = 0;
-  for (uint32_t i = 0; i < n; i++) {
-    x = (x * 1664525UL) + 1013904223UL;
-  }
-  return x;
-}
+1. Why does the ESP32 being RISC-style not automatically make it faster than an x86 processor?
+2. Why might the ESP32 still be a better choice than x86 for this lab setup?
+3. What matters more for this lab: raw peak performance or predictable timing? Explain.
 
-uint32_t IRAM_ATTR iramWorkload(uint32_t n) {
-  uint32_t x = 0;
-  for (uint32_t i = 0; i < n; i++) {
-    x = (x * 1664525UL) + 1013904223UL;
-  }
-  return x;
-}
-```
+### Modified Harvard memory organization
 
-Record your results:
+1. At a high level, what does it mean for an ESP32-class system to use a modified Harvard-style organization?
+2. Why can separate instruction and data paths, caches, internal memory, and flash behavior affect timing?
+3. Why is it incorrect to say Harvard always means “two completely separate physical memories visible to the programmer”?
 
-| Case | Average time | Jitter or notes |
-|------|--------------|-----------------|
-| Default code placement | ________ | ________ |
-| IRAM placement | ________ | ________ |
+### Single-core vs. multicore
 
-### Questions
-
-1. Was there a measurable difference?
-2. If so, how could instruction fetch path, cache behavior, flash access, or wait states explain the result?
-3. Why does this support the claim that modern embedded systems often use a **modified Harvard** structure rather than a pure von Neumann model?
-4. Why is it incorrect to say Harvard always means "two completely separate physical memories visible to the programmer"?
-5. Why might interrupt handlers or timing-critical routines be placed in internal memory on some ESP32 systems?
+1. Why did separating the blink task and load task help, or why would it be expected to help?
+2. What costs appear when moving from single-core to multicore?
+3. Why can a single-core design still be better when predictability, power, and simplicity matter most?
+4. Why might a dual-core ESP32 be useful for wireless communication plus application logic?
+5. Why might a dual-core ESP32 be unnecessary for a tiny sensor node?
 
 ---
 
@@ -472,15 +367,16 @@ Then answer:
 
 Write a short paragraph answering the following:
 
-> Based on your observations and Chapter 3, explain how the ESP32 demonstrates the relationship between CPU architecture and timing behavior. In your answer, distinguish between ISA and microarchitecture, explain why RISC does not automatically mean highest raw performance, describe modified Harvard memory organization at a high level, and explain how task placement can reduce or increase jitter, backlog, or missed deadlines. Finally, state whether a single-core, dual-core, or heterogeneous design would be better for a battery-powered IoT node that must handle sensor sampling, wireless communication, and light application logic.
+> Based on your ESP32 timing results and Chapter 3, explain how CPU architecture affects embedded-system responsiveness. In your answer, distinguish between ISA and microarchitecture, explain why RISC does not automatically mean highest raw performance, describe modified Harvard memory organization at a high level, and explain how task placement and yielding affected jitter or missed deadlines in this lab. Finally, state whether a single-core, dual-core, or heterogeneous design would be better for a battery-powered IoT node that must handle sensor sampling, wireless communication, and light application logic.
 
 A strong answer should include:
 
-- A correct distinction between **ISA** and **microarchitecture**
-- A recognition that **RISC is not automatically faster than CISC**
-- A brief explanation of **modified Harvard architecture**
-- A discussion of **contention, isolation, jitter, backlog, or missed deadlines**
-- A justified choice between **single-core**, **dual-core**, or **heterogeneous** based on workload, power, determinism, and software complexity
+- a correct distinction between **ISA** and **microarchitecture**;
+- a recognition that **RISC is not automatically faster than CISC**;
+- a brief explanation of **modified Harvard architecture**;
+- a discussion of **contention, isolation, jitter, or missed deadlines**;
+- direct use of your `max_jitter_us`, `missed_deadlines`, and task-core results;
+- a justified choice between **single-core**, **dual-core**, or **heterogeneous** based on workload, power, determinism, and software complexity.
 
 ---
 
@@ -490,19 +386,23 @@ In your lab report, answer the following:
 
 1. **ISA vs. implementation:** Suppose two processors implement the same ISA, but one has a shallow in-order pipeline and the other has a deeper, higher-frequency design with larger caches. Which properties belong to the ISA, and which belong to the microarchitecture?
 
-2. **RISC misconception:** A student says, "RISC is always faster than CISC." Use Chapter 3 and your ESP32 observations to explain why that statement is too simplistic.
+2. **RISC misconception:** A student says, “RISC is always faster than CISC.” Use Chapter 3 and your ESP32 timing results to explain why that statement is too simplistic.
 
-3. **Memory hierarchy:** Why can placing a function or interrupt handler in internal memory improve execution consistency or speed on some ESP32 workloads?
+3. **Timing evidence:** What evidence showed whether the timing-critical blink task was being delayed? Use `max_jitter_us`, `missed_deadlines`, `blink_count`, task-core placement, and `status` in your answer.
 
-4. **Core-count decision:** You are designing a wearable sensor that samples data, encrypts small packets, and sends them over BLE a few times per second. Would you choose a single-core, dual-core, or heterogeneous SoC? Justify your answer using power, determinism, timing requirements, and software complexity.
+4. **Task placement:** Why did placing `BlinkTask` and `LoadTask` on the same core create a worse design? Why can moving them to different cores improve responsiveness?
 
-5. **Task placement:** In the producer-consumer experiment, what evidence showed whether the timing-critical task was being delayed? Use produced count, consumed count, missed count, backlog, jitter, or serial output timing in your answer.
+5. **Scheduler behavior:** Why does adding `vTaskDelay(1)` after the heavy loop help? What does it allow the RTOS scheduler to do?
 
-6. **Contention and isolation:** Explain how a heavy background task can interfere with a timing-critical task even if the two tasks do not appear to do the same work.
+6. **Memory hierarchy:** Why can memory architecture still matter in a lab that mainly focuses on task placement? Include instruction fetch, data access, cache behavior, internal memory, or flash behavior in your explanation.
 
-7. **Architecture selection:** Compare an ESP32-class SoC, an Arm Cortex-A SoC, and an x86-based system for a smart-home hub. Which would you choose for a low-cost battery-powered node, and which would you choose for a mains-powered gateway? Why?
+7. **Core-count decision:** You are designing a wearable sensor that samples data, encrypts small packets, and sends them over BLE a few times per second. Would you choose a single-core, dual-core, or heterogeneous SoC? Justify your answer using power, determinism, timing requirements, and software complexity.
 
-8. **Debugging multicore systems:** Why can multicore bugs be harder to debug than single-core bugs? Include at least two of the following terms: race condition, deadlock, priority inversion, cache/memory contention, shared buffer, timing jitter, or core affinity.
+8. **Contention and isolation:** Explain how a heavy background task can interfere with a timing-critical task even if the two tasks do not appear to do the same work.
+
+9. **Architecture selection:** Compare an ESP32-class SoC, an Arm Cortex-A SoC, and an x86-based system for a smart-home hub. Which would you choose for a low-cost battery-powered node, and which would you choose for a mains-powered gateway? Why?
+
+10. **Debugging multicore systems:** Why can multicore bugs be harder to debug than single-core bugs? Include at least two of the following terms: race condition, deadlock, priority inversion, cache/memory contention, shared buffer, timing jitter, or core affinity.
 
 ---
 
@@ -510,35 +410,23 @@ In your lab report, answer the following:
 
 | Component | Points | How graded |
 |-----------|--------|------------|
-| Part 1 device identification | 15 | Completion, correctness, and correct ISA/microarchitecture language |
-| Part 2 timing measurement | 15 | Working benchmark, repeated trials, and recorded timing/jitter results |
-| Part 3 task-placement experiment | 25 | Correct experiment setup or conceptual analysis, telemetry collection, and explanation of timing behavior |
-| Optional memory placement observation | 10 | Measurement or well-supported explanation of modified Harvard memory effects |
-| Reflection question | 20 | Technical accuracy and use of Chapter 3 concepts |
-| Lab report questions | 25 | Depth of reasoning and quality of architecture tradeoff analysis |
+| Part 1 architecture classification | 15 | Correct board/core classification and correct ISA/microarchitecture language |
+| Part 2 buggy timing test | 15 | Runs starting version, records complete telemetry, and identifies the intentional placement/yielding problems |
+| Part 3 fixed timing test | 25 | Correctly moves the load task, adds `vTaskDelay(1)`, reruns the test, and records complete telemetry |
+| Part 4 Chapter 3 analysis | 20 | Explains results using contention, scheduling, task placement, jitter, missed deadlines, and architecture tradeoffs |
+| Reflection question | 10 | Clear paragraph using lab data and Chapter 3 vocabulary |
+| Lab report questions | 15 | Depth of reasoning and quality of engineering tradeoff analysis |
 
-Total without optional memory section: **100 points**
-
-Total with optional memory section: **110 points possible, capped at 100 unless your instructor states otherwise**
-
-Suggested 100-point grading if the optional memory section is not assigned:
-
-| Component | Points |
-|-----------|--------|
-| Part 1 device identification | 15 |
-| Part 2 timing measurement | 15 |
-| Part 3 task-placement experiment | 30 |
-| Reflection question | 20 |
-| Lab report questions | 20 |
+Total: **100 points**
 
 ---
 
 ## 3.9.13 Summary
 
-This lab turns Chapter 3 from a reading-only topic into a hands-on architecture exercise. By observing a real ESP32, you connect abstract ideas - **ISA vs. microarchitecture, RISC vs. CISC, modified Harvard memory organization, single-core vs. multicore design, and task placement** - to the behavior of an actual embedded SoC.
+This lab turns Chapter 3 from a reading-only topic into a hands-on architecture exercise. By running and fixing a real ESP32 FreeRTOS timing test, you connect abstract ideas - **ISA vs. microarchitecture, RISC vs. CISC, modified Harvard memory organization, single-core vs. multicore design, task placement, contention, jitter, and missed deadlines** - to observable embedded-system behavior.
 
-The key lesson is the same one emphasized throughout the revised Chapter 3: processor selection is about **tradeoffs**. The best core is not the one with the most impressive label. It is the one that satisfies the product's timing, power, cost, software, and reliability requirements.
+The most important lesson is not that multicore is always better. The most important lesson is that processor selection and task placement are engineering tradeoffs. A design is good when it meets timing requirements with acceptable power, cost, complexity, reliability, and software risk.
 
-For the ESP32 lab, the most important architecture lesson is this:
+For this ESP32 lab, the key Chapter 3 takeaway is:
 
-> More cores can improve responsiveness, but only when timing-critical work, background work, shared buffers, and memory access are coordinated carefully.
+> More cores can improve responsiveness, but only when timing-critical work, background work, and scheduler behavior are coordinated carefully.
