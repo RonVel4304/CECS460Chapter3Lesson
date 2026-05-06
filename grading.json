@@ -1,49 +1,52 @@
 {
-  "chapter": "ch03",
+  "chapter": "ch3",
   "max_points": 100,
   "questions": [
     {
       "id": "q1",
       "points": 15,
       "keywords": [
-        "single-core",
         "single core",
         "predictable",
         "deterministic",
         "timing",
         "simpler",
-        "debug",
-        "lower complexity",
-        "low power"
+        "easier to debug",
+        "low power",
+        "less complexity",
+        "real-time",
+        "real time",
+        "sensor"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student chooses a single-core design for a small wearable or similarly constrained device and justifies it using predictability, simpler debugging, lower synchronization overhead, lower software complexity, or power efficiency. Accept answers that compare it against multicore or heterogeneous options."
+      "rubric": "Full credit if the student justifies when a single-core design is appropriate using ideas like timing predictability, lower software complexity, easier debugging, lower power, or suitability for simple embedded/control tasks."
     },
     {
       "id": "q2",
       "points": 15,
       "keywords": [
+        "multicore",
+        "multi core",
         "same core",
         "contention",
-        "shared",
-        "shared data",
-        "shared buffer",
-        "interference",
         "jitter",
-        "missed",
-        "deadline",
         "latency",
+        "missed deadlines",
         "background task",
-        "heavy task",
+        "synchronization",
+        "shared memory",
+        "core placement",
         "other core",
-        "isolate"
+        "responsiveness",
+        "parallel",
+        "concurrency"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student explains that putting a timing-critical task and a heavy background task on the same core, or sharing data inefficiently across cores, can create contention, interference, jitter, latency, or missed deadlines. Accept answers that mention moving the heavy task to the other core or isolating work."
+      "rubric": "Full credit if the student explains that multicore can improve responsiveness by separating work, but poor task placement or shared-resource contention can still cause jitter, latency, or missed deadlines."
     },
     {
       "id": "q3",
-      "points": 12,
+      "points": 15,
       "keywords": [
         "harvard",
         "von neumann",
@@ -51,19 +54,22 @@
         "data",
         "separate",
         "shared",
-        "path",
-        "bus",
-        "contention",
         "bandwidth",
+        "contention",
         "throughput",
-        "modified harvard"
+        "modified harvard",
+        "single address space",
+        "i-cache",
+        "d-cache",
+        "iram",
+        "flash"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student correctly compares Harvard and von Neumann architectures, especially the difference between separate instruction/data paths and shared paths. Accept discussion of reduced contention, better throughput, or modified Harvard behavior."
+      "rubric": "Full credit if the student correctly compares Harvard and von Neumann architectures, especially using instruction/data path separation, bandwidth, contention, and the idea that modified Harvard can still present a unified address space to software."
     },
     {
       "id": "q4",
-      "points": 12,
+      "points": 15,
       "keywords": [
         "cisc",
         "risc",
@@ -71,14 +77,18 @@
         "legacy",
         "compatibility",
         "desktop",
-        "linux",
         "windows",
-        "ecosystem",
+        "linux",
+        "code density",
         "toolchain",
-        "code density"
+        "software ecosystem",
+        "embedded",
+        "predictable",
+        "power",
+        "deterministic"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student explains that a designer might choose a CISC core when compatibility with legacy x86 software, desktop-class operating systems, or a mature software ecosystem matters more than embedded-style simplicity, power, or timing predictability."
+      "rubric": "Full credit if the student explains that a designer would choose CISC when compatibility with legacy x86 software, desktop-class OS support, or mature software ecosystems matters more than embedded-style power or determinism."
     },
     {
       "id": "q5",
@@ -86,105 +96,116 @@
       "keywords": [
         "big.little",
         "big little",
+        "heterogeneous",
         "performance core",
         "efficiency core",
-        "high performance",
-        "low power",
-        "heterogeneous",
-        "burst",
-        "background task",
+        "power",
         "energy",
-        "mixed workload"
+        "bursty workload",
+        "background task",
+        "foreground",
+        "mixed workload",
+        "heavy task",
+        "light task"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student explains that big.LITTLE combines performance-oriented and efficiency-oriented cores to balance speed and power across mixed workloads."
+      "rubric": "Full credit if the student explains that big.LITTLE is a heterogeneous architecture combining higher-performance cores with lower-power efficiency cores to balance speed and energy across different workloads."
     },
     {
       "id": "q_mc1",
-      "points": 6,
+      "points": 5,
       "keywords": [
-        "instructions and data use separate paths",
-        "separate instruction and data paths",
-        "harvard"
+        "harvard",
+        "separate paths",
+        "separate instruction and data paths"
       ],
       "keyword_mode": "any",
-      "rubric": "MCQ: full credit if the submitted answer text identifies Harvard architecture as using separate instruction and data paths."
+      "rubric": "MCQ: full credit if the selected answer identifies Harvard architecture as using separate instruction and data paths."
     },
     {
       "id": "q_mc2",
-      "points": 6,
+      "points": 5,
       "keywords": [
-        "improve concurrency but add synchronization and debug complexity",
-        "synchronization and debug complexity",
-        "concurrency"
+        "heterogeneous",
+        "different types of cores",
+        "different kinds of cores",
+        "mixed criticality"
       ],
       "keyword_mode": "any",
-      "rubric": "MCQ: full credit if the submitted answer text identifies the main multicore tradeoff as improved concurrency with added synchronization/debug complexity."
+      "rubric": "MCQ: full credit if the selected answer identifies heterogeneous systems as using different kinds of cores or supporting mixed-criticality workloads."
     },
     {
       "id": "q_mc3",
-      "points": 6,
+      "points": 5,
       "keywords": [
-        "different safety, timing, or reliability requirements",
-        "different timing or safety requirements",
         "mixed criticality",
+        "different safety",
+        "different timing requirements",
+        "different reliability requirements",
         "critical and noncritical tasks"
       ],
       "keyword_mode": "any",
-      "rubric": "MCQ: full credit if the submitted answer text correctly defines mixed criticality as tasks with different timing, safety, or reliability requirements sharing a system."
+      "rubric": "MCQ: full credit if the selected answer explains that mixed criticality refers to tasks with different timing, safety, or reliability requirements sharing one system."
     },
     {
       "id": "q_mc4",
-      "points": 6,
+      "points": 5,
       "keywords": [
-        "heterogeneous architecture with performance and efficiency cores",
-        "performance and efficiency cores",
         "big.little",
-        "heterogeneous"
+        "performance and efficiency cores",
+        "performance cores and efficiency cores",
+        "heterogeneous architecture"
       ],
       "keyword_mode": "any",
-      "rubric": "MCQ: full credit if the submitted answer text identifies big.LITTLE as a heterogeneous architecture combining performance and efficiency cores."
+      "rubric": "MCQ: full credit if the selected answer identifies big.LITTLE as a heterogeneous architecture combining performance-oriented and efficiency-oriented cores."
     },
     {
       "id": "q_tf1",
-      "points": 4,
+      "points": 5,
       "keywords": [
         "false"
       ],
       "keyword_mode": "any",
-      "rubric": "True/false: full credit if the student answers False to the statement that Harvard architecture always means two completely separate physical memories."
+      "rubric": "True/False: full credit if the student answers False to a statement like 'Harvard architecture always means two completely separate physical memories.'"
     },
     {
       "id": "q_lab1",
-      "points": 4,
+      "points": 5,
       "keywords": [
         "timing:",
-        "produced=",
-        "consumed=",
-        "missed=",
-        "status=pass"
+        "produced",
+        "consumed",
+        "missed",
+        "producer_core",
+        "consumer_core",
+        "status=pass",
+        "pass"
       ],
-      "keyword_mode": "all",
-      "rubric": "Auto-graded hardware telemetry. Expected format should include a timing tag and fields such as produced, consumed, missed, and status=PASS. For now, this server-side keyword grader checks only that the telemetry string includes all required fields. Example acceptable format: [timing:produced=20 consumed=20 missed=0 status=PASS]."
+      "keyword_mode": "any",
+      "rubric": "Auto-graded hardware telemetry question for the Chapter 3 lab. Intended format may look like: [timing:produced=X consumed=Y missed=Z producer_core=A consumer_core=B status=PASS]. Full credit if the firmware reports successful event handling, correct core placement, and a passing status."
     },
     {
       "id": "q_lab2",
-      "points": 10,
+      "points": 5,
       "keywords": [
         "contention",
-        "shared",
         "shared buffer",
+        "shared state",
+        "shared memory",
         "same core",
         "other core",
-        "jitter",
         "latency",
-        "missed",
-        "isolate",
+        "jitter",
+        "missed events",
+        "background task",
         "timing-critical",
-        "timing critical"
+        "timing critical",
+        "producer",
+        "consumer",
+        "interference"
       ],
       "keyword_mode": "any",
-      "rubric": "Full credit: student explains that poor sharing or poor task placement can create contention, latency, jitter, or missed events, and that isolating work or moving heavy processing away from the timing-critical path improves responsiveness."
+      "rubric": "Lab reflection: full credit if the student explains that poor sharing or contention between tasks can cause latency, jitter, or missed events, and that cleaner task separation or reduced shared-state access improves multicore behavior."
     }
   ]
 }
