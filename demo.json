@@ -1,0 +1,244 @@
+{
+  "_description": "CECS 460 Chapter 3 team demo for the Final Expo. This demo introduces the chapter gaps, summarizes the enhancement, launches the live lesson, and collects peer review after the live ESP32 multicore timing demonstration.",
+  "_strip_for_deployment": true,
+  "lesson_id": "c460_ch3",
+  "chapter": "ch3",
+  "version": 1,
+  "demo_type": "team_demo",
+  "meta": {
+    "chapter": 3,
+    "team": "Team [Your Team Name] — [Member 1], [Member 2]",
+    "members": [
+      "[Member 1 Full Name]",
+      "[Member 2 Full Name]"
+    ],
+    "chapter_title": "CPU Architectures and Core Comparisons",
+    "expo_date": "Final Expo — Spring 2026, Week 16",
+    "course": "CECS 460 — System on a Chip Design, CSULB"
+  },
+  "presentation": {
+    "_teaching_note": "This section replaces a slide deck. The sequence must be title_card, three gap_analysis cards, one enhancement_summary, and one transition_card.",
+    "steps": [
+      {
+        "id": "demo_title",
+        "type": "title_card",
+        "display_duration_seconds": 20,
+        "_instructor_say": "Introduce the team, Chapter 3, and the main theme: CPU architecture choices are tradeoffs, not labels. Preview that the live demo will show how task placement and shared buffers affect ESP32 timing behavior."
+      },
+      {
+        "id": "demo_gap_1",
+        "type": "gap_analysis",
+        "gap_number": 1,
+        "gap_title": "The original chapter made architecture terms feel like vocabulary instead of design choices",
+        "gap_description": "The original Chapter 3 covered important CPU architecture terms, but students could easily walk away memorizing labels like RISC, CISC, Harvard, and multicore without knowing when an engineer would choose one option over another. That weakens the connection between architecture and real SoC design decisions.",
+        "poll": {
+          "id": "demo_gap_1_poll",
+          "prompt": "How significant was this gap? (1 = minor, 3 = major)",
+          "type": "rating",
+          "scale": {
+            "min": 1,
+            "max": 3
+          },
+          "anonymous": true,
+          "duration_seconds": 30
+        },
+        "fix_preview": "We reframed the chapter around practical tradeoff questions: what does this architecture choice make easier, and what does it make harder?",
+        "_instructor_say": "Pause for the poll, then explain that the revised lesson pushes students to justify choices instead of repeating slogans like RISC is faster or multicore is always better."
+      },
+      {
+        "id": "demo_gap_2",
+        "type": "gap_analysis",
+        "gap_number": 2,
+        "gap_title": "The memory architecture section needed a clearer connection to timing behavior",
+        "gap_description": "Concepts like Harvard, von Neumann, modified Harvard, caches, IRAM, and shared memory can feel abstract unless students see how instruction/data paths, cache misses, and contention affect latency and predictability. The original chapter did not make that connection concrete enough for the ESP32 lab.",
+        "poll": {
+          "id": "demo_gap_2_poll",
+          "prompt": "How significant was this gap? (1 = minor, 3 = major)",
+          "type": "rating",
+          "scale": {
+            "min": 1,
+            "max": 3
+          },
+          "anonymous": true,
+          "duration_seconds": 30
+        },
+        "fix_preview": "We added clearer comparisons of Harvard versus von Neumann organization and tied memory paths, cache behavior, and shared-resource contention directly to embedded timing stability.",
+        "_instructor_say": "Emphasize that the revised chapter avoids the misconception that Harvard always means two separate physical memory chips. The point is instruction/data access behavior and contention."
+      },
+      {
+        "id": "demo_gap_3",
+        "type": "gap_analysis",
+        "gap_number": 3,
+        "gap_title": "The lab needed to prove students could explain multicore timing, not just make code run",
+        "gap_description": "A Chapter 3 lab should not stop at a local blink or a generic pass condition. Students need to observe timing telemetry, identify how a timing-critical path can be affected by heavy background work or shared buffers, and explain why cleaner task separation improves responsiveness.",
+        "poll": {
+          "id": "demo_gap_3_poll",
+          "prompt": "How significant was this gap? (1 = minor, 3 = major)",
+          "type": "rating",
+          "scale": {
+            "min": 1,
+            "max": 3
+          },
+          "anonymous": true,
+          "duration_seconds": 30
+        },
+        "fix_preview": "We built the lab around an ESP32 producer/consumer timing test where the corrected firmware reports telemetry such as produced, consumed, missed, backlog, producer core, consumer core, and PASS status.",
+        "_teaching_note": "This is the most technical gap. It ties directly to the live hardware result and the server-side validation path."
+      },
+      {
+        "id": "demo_enhancement_summary",
+        "type": "enhancement_summary",
+        "lesson_steps_added": "Seven Chapter 3 lesson steps now form a tradeoff-driven flow: ISA versus microarchitecture, RISC versus CISC, Harvard versus von Neumann memory organization, single-core versus multicore, heterogeneous and big.LITTLE systems, quantitative intuition, and an ESP32 timing-stability lab with reflection.",
+        "firmware_task": "Students flash the Chapter 3 ESP32 timing lab firmware, run the starter producer/consumer test, inspect timing telemetry, then modify the firmware to reduce interference from heavy background work and shared-buffer behavior. The goal is not just to pass, but to explain how task placement, contention, latency, jitter, and missed events are connected.",
+        "server_pass_mechanism": "The final pass is awarded only when the corrected ESP32 automatically submits a timing telemetry string in the expected classroom format, such as [timing:produced=X consumed=Y missed=Z backlog=B producer_core=A consumer_core=B status=PASS]. The server-side grading expects a valid timing result and rejects vague or random strings that do not show the required telemetry.",
+        "questions_added": "We added graded prompts asking students to justify single-core versus multicore choices, explain why x86/CISC may be chosen for compatibility, compare Harvard and von Neumann memory systems, reason about multicore ESP32 timing instability, use approximate quantitative values correctly, and reflect on the hardware telemetry from the lab.",
+        "push_question": {
+          "id": "demo_enhancement_pq",
+          "prompt": "Before the live demo: what one thing must the ESP32 timing telemetry show to convince you this lesson is testing real multicore architecture understanding and not just a memorized definition?",
+          "type": "short_answer",
+          "anonymous": true
+        },
+        "_teaching_note": "Keep this concrete and technical. State exactly what was added to lesson.json, grading.json, firmware, and server validation."
+      },
+      {
+        "id": "demo_transition",
+        "type": "transition_card",
+        "message": "We will now run the Chapter 3 lesson live. Watch for three things: first, how the lesson separates CPU labels from real design tradeoffs; second, how memory and shared resources connect to timing behavior; and third, how the ESP32 firmware reports real timing telemetry after the multicore task-placement fix.",
+        "launch_lesson": true,
+        "lesson_chapter": "ch3",
+        "demo_driver_note": "Drive the ISA versus microarchitecture section, the Harvard versus von Neumann memory comparison, the multicore tradeoff section, and the final ESP32 timing lab live. Move quickly through the processor-family survey if time is short, but do not skip the telemetry result and lab reflection."
+      }
+    ]
+  },
+  "lesson_integration": {
+    "mode": "instructor_driven",
+    "source_chapter": "ch3",
+    "estimated_duration_minutes": 7,
+    "suggested_steps_to_demo": [
+      "3.1 -- ISA, Microarchitecture, and Instruction Set Philosophy",
+      "3.2 -- Memory Architecture",
+      "3.3 -- Single-Core, Multicore, and Heterogeneous SoCs",
+      "Lab -- Timing Stability and Shared-Buffer Behavior on the ESP32",
+      "Lab Reflection -- Explain the Timing Behavior"
+    ],
+    "_instructor_say": "Open the live lesson from the transition card. Show the tradeoff framing, then jump to the ESP32 timing lab and point out the produced, consumed, missed, backlog, core placement, and PASS telemetry."
+  },
+  "peer_review": {
+    "_teaching_note": "These are the required team-demo peer review questions. The four required criterion ids must appear exactly, plus pr_improve as optional short answer.",
+    "_instructor_say": "Tell classmates to score the demo honestly after the live lesson completes.",
+    "instructions": "You just saw the Chapter 3 team demo. Rate the presentation below. All responses are anonymous. These scores contribute to the team's Final Expo evaluation, but self-scoring is excluded server-side.",
+    "questions": [
+      {
+        "id": "pr_fun",
+        "type": "rating",
+        "criterion": "Fun",
+        "prompt": "Would you recommend this module to a friend taking CECS 460 next semester?",
+        "scale": {
+          "min": 1,
+          "max": 4,
+          "labels": {
+            "1": "Dry — hard to stay engaged",
+            "2": "Okay — passable",
+            "3": "Good — solid module",
+            "4": "Memorable — would tell friends"
+          }
+        },
+        "anonymous": true,
+        "required": true
+      },
+      {
+        "id": "pr_engagement",
+        "type": "rating",
+        "criterion": "Engagement",
+        "prompt": "How well did this demo keep you mentally engaged from the opening presentation through the live lesson?",
+        "scale": {
+          "min": 1,
+          "max": 3,
+          "labels": {
+            "1": "Unprepared or hard to follow",
+            "2": "Clear — you understood the content",
+            "3": "Captivating — you want to learn more"
+          }
+        },
+        "anonymous": true,
+        "required": true
+      },
+      {
+        "id": "pr_creativity",
+        "type": "rating",
+        "criterion": "Creativity",
+        "prompt": "Was the team's enhancement genuinely inventive, or just a straightforward addition?",
+        "scale": {
+          "min": 1,
+          "max": 3,
+          "labels": {
+            "1": "Standard — expected addition",
+            "2": "Thoughtful — some original choices",
+            "3": "Inventive — you would not have thought of this"
+          }
+        },
+        "anonymous": true,
+        "required": true
+      },
+      {
+        "id": "pr_firmware_clarity",
+        "type": "rating",
+        "criterion": "Firmware Demo Clarity",
+        "prompt": "How clearly did you understand the firmware task and the live hardware demonstration?",
+        "scale": {
+          "min": 1,
+          "max": 3,
+          "labels": {
+            "1": "Unclear — hard to follow the firmware behavior",
+            "2": "Mostly clear — got the general idea",
+            "3": "Very clear — could explain it to someone else"
+          }
+        },
+        "anonymous": true,
+        "required": true
+      },
+      {
+        "id": "pr_meta_question",
+        "type": "short_answer",
+        "prompt": "After experiencing this demo: what is one thing about the demo.json format or the Final Expo structure that is still unclear to you?",
+        "anonymous": true,
+        "required": false,
+        "max_length": 300,
+        "_note": "Unique to the instructor demo — not in team demo.json files. Surfaces Final Expo confusion early.",
+        "_instructor_say": "Read these aloud after the session. Action items for Week 1 office hours."
+      },
+      {
+        "id": "pr_improve",
+        "type": "short_answer",
+        "prompt": "One thing you would improve about this Chapter 3 demo:",
+        "anonymous": true,
+        "required": false,
+        "max_length": 200
+      }
+    ],
+    "scoring": {
+      "exclude_self": true,
+      "apply_to_grade": true,
+      "output_format": "averaged_per_criterion",
+      "share_averages_with_class": true,
+      "window": "session_based"
+    }
+  },
+  "post_demo_debrief": {
+    "duration_minutes": 3,
+    "discussion_prompts": [
+      "Which Chapter 3 tradeoff felt most important for real embedded design, and why?",
+      "Did the ESP32 telemetry make multicore contention and timing stability easier to understand?",
+      "What would you add next if this Chapter 3 enhancement were shipped to next semester's students?"
+    ]
+  },
+  "demo_flags": {
+    "mode": "team_demo",
+    "route": "/cecs460/demo/ch3",
+    "strip_for_deployment": true,
+    "include_in_next_semester_zip": true,
+    "peer_review_window_mode": "session_based",
+    "peer_review_window_hours": 0,
+    "apply_peer_review_to_grade": true
+  }
+}
